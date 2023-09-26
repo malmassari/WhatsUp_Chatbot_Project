@@ -15,7 +15,7 @@ transform = transforms.Compose([
 ])
 
 # Use an absolute path or the correct relative path
-dataset_root = "Laptop_Locked_Samples_2/"
+dataset_root = "Laptop_Locked_Samples/"
 assert os.path.exists(dataset_root), f"Couldn't find the directory: {dataset_root}"
 
 dataset = ImageFolder(root=dataset_root, transform=transform)
@@ -73,69 +73,42 @@ optimizerG = optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
 
 # Training Loop
 num_epochs = 10000
+batch_size = 9  # batch_size is set globally here, it's not necessary to set it inside the loop
+
+# This will iterate through the dataset num_epochs times.
 for epoch in range(num_epochs):
     # 1. Train the Discriminator
-    discriminator.zero_grad()
-    
-    # Training with real images
-    for i, (real_data, _) in enumerate(dataloader): # ... load your real images here ...
-        batch_size = 9
-        num_epochs = 10000
-
-        for epoch in range(num_epochs):
-            # 1. Train the Discriminator
-            discriminator.zero_grad()
-            
-            # Training with real images
-            for i, (real_data, _) in enumerate(dataloader):
-                label = torch.full((batch_size,1), 1.0, dtype=torch.float)  # Corrected dtype to float
-                print(real_data.shape)  # should print torch.Size([batch_size, 3, 54, 54])
-                real_data = real_data.view(real_data.size(0), -1)  # Flatten the real_data
-                output = discriminator(real_data)
-                errD_real = criterion(output, label)
-                errD_real.backward()
-            
-            # Training with fake images
-            noise = torch.randn(batch_size, 100)
-            fake = generator(noise)
-            label.fill_(0)
-            output = discriminator(fake.detach())
-            errD_fake = criterion(output, label)
-            errD_fake.backward()
-            
-            errD = errD_real + errD_fake
-            optimizerD.step()
-
-            # 2. Train the Generator
-            generator.zero_grad()
-            label.fill_(1)
-            output = discriminator(fake)
-            errG = criterion(output, label)
-            errG.backward()
-            optimizerG.step()
-
-            print(f"[{epoch}/{num_epochs}] Loss_D: {errD.item()} Loss_G: {errG.item()}")
+    for i, (real_data, _) in enumerate(dataloader):
+        discriminator.zero_grad()
+        
+        # 1.1 Train Discriminator on real data
+        current_batch_size = real_data.size(0)  # dynamically get the batch size
+        label = torch.full((current_batch_size, 1), 1.0, dtype=torch.float)  # using real_data.size(0) to handle dynamic batch sizes
+        print(real_data.shape)  # should print torch.Size([batch_size, 3, 54, 54])
+        real_data = real_data.view(current_batch_size, -1)  # Flatten the real_data
         output = discriminator(real_data)
         errD_real = criterion(output, label)
         errD_real.backward()
-    
-    # Training with fake images
-    noise = torch.randn(batch_size, 100)
-    fake = generator(noise)
-    label.fill_(0)
-    output = discriminator(fake.detach())
-    errD_fake = criterion(output, label)
-    errD_fake.backward()
-    
-    errD = errD_real + errD_fake
-    optimizerD.step()
 
-    # 2. Train the Generator
-    generator.zero_grad()
-    label.fill_(1)
-    output = discriminator(fake)
-    errG = criterion(output, label)
-    errG.backward()
-    optimizerG.step()
+        # 1.2 Train Discriminator on fake data
+        noise = torch.randn(current_batch_size, 100)  # Adjust noise to current_batch_size
+        fake = generator(noise)
+        label.fill_(0)  # Set label to 0 for fake data
+        output = discriminator(fake.detach())
+        errD_fake = criterion(output, label)
+        errD_fake.backward()
 
+        # Update Discriminator
+        errD = errD_real + errD_fake
+        optimizerD.step()
+        
+        # 2. Train the Generator
+        generator.zero_grad()
+        label.fill_(1)  # Generator wants the discriminator to output 1 for fake data
+        output = discriminator(fake)  # Don't detach here
+        errG = criterion(output, label)
+        errG.backward()
+        optimizerG.step()
+
+    # Print statistics for every epoch
     print(f"[{epoch}/{num_epochs}] Loss_D: {errD.item()} Loss_G: {errG.item()}")
