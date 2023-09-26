@@ -136,3 +136,4 @@ cython_debug/
 Laptop_Locked_Samples_*/*
 *.rar
 *.zip
+*.doc
